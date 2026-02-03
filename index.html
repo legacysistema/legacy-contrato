@@ -1,0 +1,1317 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legacy CRM - Enterprise Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ 
+    <style>
+        :root {
+            /* Palette Enterprise */
+            --primary: #2563eb;       /* Azul Royal */
+            --primary-dark: #1e40af;
+            --secondary: #64748b;     /* Slate Grey */
+            --bg-body: #f1f5f9;
+            --bg-panel: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --radius: 10px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        
+        /* Oculta o app principal até logar */
+        body { background-color: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; }
+        body.not-authenticated main, 
+        body.not-authenticated aside,
+        body.not-authenticated #intro-overlay { display: none !important; }
+
+      
+        #login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #020617; /* Dark Navy do print */
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Oculta login quando autenticado */
+        body.authenticated #login-overlay { display: none; }
+
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            text-align: left;
+            position: relative;
+        }
+
+        .login-header { text-align: center; margin-bottom: 30px; }
+        .login-icon { 
+            font-size: 2.5rem; 
+            color: var(--primary); 
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        .login-title {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 5px;
+        }
+        .login-subtitle {
+            color: #64748b;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .login-form-group { margin-bottom: 20px; }
+        .login-form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+        
+        .login-input {
+            width: 100%;
+            padding: 12px 15px;
+            background-color: #f1f5f9; /* Fundo cinza claro dos inputs */
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+            color: #334155;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .login-input:focus {
+            background-color: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn-login-action {
+            width: 100%;
+            padding: 14px;
+            background-color: #2563eb; /* Azul botão */
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 20px;
+        }
+        .btn-login-action:hover { background-color: #1d4ed8; }
+        .btn-login-action:disabled { opacity: 0.7; cursor: not-allowed; }
+
+        .login-footer-badge {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            color: #64748b;
+            font-size: 0.85rem;
+            background: #fff;
+        }
+
+        .login-error {
+            color: #ef4444;
+            font-size: 0.85rem;
+            text-align: center;
+            margin-bottom: 15px;
+            display: none;
+            background: #fee2e2;
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+      
+        #intro-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            z-index: 9999;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            transition: opacity 0.8s ease-out, visibility 0.8s;
+        }
+
+        .intro-title {
+            margin-top: 60px; font-size: 2.8rem; font-weight: 800;
+            background: linear-gradient(180deg, #ffffff 0%, #94a3b8 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -1px; margin-bottom: 5px;
+        }
+        .intro-subtitle { color: #64748b; font-size: 0.85rem; letter-spacing: 4px; text-transform: uppercase; font-weight: 600; margin-bottom: 40px; }
+        .intro-loader {
+            width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--warning); border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* CUBO 3D */
+        .cube-header-wrapper { width: 64px; height: 64px; perspective: 900px; display: flex; align-items: center; justify-content: center; }
+        .cube-scale-up { transform: scale(2.5); }
+        .cube-header { width: 42px; height: 42px; position: relative; transform-style: preserve-3d; animation: rotateCubeHeader 10s linear infinite; }
+        .cube-header .cube-face {
+            position: absolute; width: 42px; height: 42px;
+            background: linear-gradient(135deg, rgba(59,130,246,0.35), rgba(30,64,175,0.35));
+            border: 1px solid rgba(147,197,253,0.9);
+            box-shadow: 0 0 18px rgba(59,130,246,0.85), inset 0 0 12px rgba(255,255,255,0.25);
+            backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center;
+            color: #e0ecff; font-size: 15px;
+        }
+        .face-front  { transform: rotateY(0deg) translateZ(21px); }
+        .face-back   { transform: rotateY(180deg) translateZ(21px); }
+        .face-right  { transform: rotateY(90deg) translateZ(21px); }
+        .face-left   { transform: rotateY(-90deg) translateZ(21px); }
+        .face-top    { transform: rotateX(90deg) translateZ(21px); }
+        .face-bottom { transform: rotateX(-90deg) translateZ(21px); }
+        @keyframes rotateCubeHeader { 0% { transform: rotateX(22deg) rotateY(0deg); } 100% { transform: rotateX(22deg) rotateY(360deg); } }
+
+        /* SIDEBAR */
+        aside {
+            width: 280px; background: #1e293b; color: white;
+            display: flex; flex-direction: column; border-right: 1px solid #334155;
+            z-index: 20; transition: all 0.3s;
+        }
+        .brand {
+            padding: 25px; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.5px;
+            border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.1);
+        }
+        .nav-menu { padding: 20px 0; flex: 1; }
+        .nav-btn {
+            width: 100%; padding: 15px 25px; background: transparent; border: none;
+            color: #94a3b8; text-align: left; cursor: pointer; font-size: 0.95rem; font-weight: 500;
+            display: flex; align-items: center; gap: 15px; transition: all 0.2s; border-left: 3px solid transparent;
+        }
+        .nav-btn:hover { color: white; background: rgba(255,255,255,0.05); }
+        .nav-btn.active { color: white; background: rgba(255,255,255,0.05); border-left-color: var(--primary); }
+        .nav-btn i { width: 20px; text-align: center; }
+        .sidebar-footer { padding: 20px; border-top: 1px solid #334155; }
+        .user-profile-mini {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 15px; padding: 10px;
+            background: rgba(255,255,255,0.05); border-radius: 6px;
+        }
+
+        /* MAIN & COMPONENTS */
+        main { flex: 1; padding: 30px; overflow-y: auto; position: relative; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .page-title h1 { font-size: 1.6rem; font-weight: 700; color: #1e293b; }
+        .page-title p { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+
+        .card { background: var(--bg-panel); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border); padding: 25px; margin-bottom: 20px; }
+        .btn { padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: 500; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 2px 5px rgba(37, 99, 235, 0.2); }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-outline { background: white; border: 1px solid #cbd5e1; color: #475569; }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-danger { background: #fee2e2; color: #ef4444; }
+        .btn-success { background: #dcfce7; color: #166534; } 
+        .btn-icon { padding: 8px; border-radius: 4px; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+        
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; color: #475569; }
+        .form-control { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; outline: none; background: #f8fafc; }
+        .form-control:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+        .table-container { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: white; min-height: 300px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f8fafc; padding: 12px 20px; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 700; border-bottom: 1px solid var(--border); }
+        td { padding: 14px 20px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; color: #334155; vertical-align: middle; }
+        
+        /* Contrato & Editor */
+        .contract-wrapper { background: #e2e8f0; padding: 40px; border-radius: var(--radius); display: flex; justify-content: center; overflow-y: auto; max-height: 800px; }
+        .paper { width: 210mm; min-height: 297mm; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.15); padding: 25mm 20mm; position: relative; color: #000; font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.6; white-space: pre-wrap; }
+        .paper-header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #000; }
+        
+        /* Tabs e Modais */
+        .tab-view { display: none; animation: fadeEffect 0.3s; }
+        .tab-view.active { display: block; }
+        @keyframes fadeEffect { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .modal-content { background: white; width: 500px; border-radius: 12px; padding: 30px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        @media print { body * { visibility: hidden; } .paper, .paper * { visibility: visible; } .paper { position: absolute; top: 0; left: 0; margin: 0; box-shadow: none; width: 100%; padding: 20mm; } .contract-wrapper { background: white; padding: 0; overflow: visible; } }
+    </style>
+</head>
+<body class="not-authenticated">
+
+    <div id="login-overlay">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-icon"><i class="fas fa-file-signature"></i></div>
+                <h1 class="login-title">Legacy CRM</h1>
+                <p class="login-subtitle">Enterprise Edition 360</p>
+            </div>
+
+            <div id="login-error-msg" class="login-error"></div>
+
+            <div class="login-form-group">
+                <label>Email de Acesso</label>
+                <input type="email" id="login-email" class="login-input" placeholder="seu@email.com">
+            </div>
+
+            <div class="login-form-group">
+                <label>Senha</label>
+                <input type="password" id="login-password" class="login-input" placeholder="••••••••">
+            </div>
+
+            <button id="btn-do-login" class="btn-login-action" onclick="authManager.login()">Entrar no Sistema</button>
+
+            <div class="login-footer-badge">
+                <i class="fas fa-lock" style="margin-right: 5px;"></i> Sistema protegido e criptografado.
+            </div>
+        </div>
+    </div>
+
+    <div id="intro-overlay">
+        <div class="cube-header-wrapper cube-scale-up">
+            <div class="cube-header">
+                <div class="cube-face face-front"><i class="fas fa-chart-line"></i></div>
+                <div class="cube-face face-back"><i class="fas fa-users"></i></div>
+                <div class="cube-face face-right"><i class="fas fa-project-diagram"></i></div>
+                <div class="cube-face face-left"><i class="fas fa-wallet"></i></div>
+                <div class="cube-face face-top"><i class="fas fa-cube"></i></div>
+                <div class="cube-face face-bottom"><i class="fas fa-database"></i></div>
+            </div>
+        </div>
+        <h1 class="intro-title">Legacy Contracts</h1>
+        <p class="intro-subtitle">ENTERPRISE EDITION 360</p>
+        <div class="intro-loader"></div>
+        <p class="intro-text-loading">Autenticado. Carregando Módulos...</p>
+    </div>
+
+    <aside>
+        <div class="brand">
+            <i class="fas fa-file-signature" style="margin-right: 10px; color: #ffffff; font-size: 1.1rem; opacity: 0.9;"></i> Legacy Contract 
+        </div>
+        
+        <div class="nav-menu">
+            <div style="padding: 0 20px;">
+                <div class="user-profile-mini">
+                    <div style="width: 32px; height: 32px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div style="font-size: 0.85rem;">
+                        <div style="font-weight: 600;" id="user-display-email">Usuário</div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; display: flex; align-items: center; gap: 4px;">
+                            <span style="width: 6px; height: 6px; background: #10b981; border-radius: 50%;"></span> Online
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="nav-btn active" onclick="app.nav('dashboard')"><i class="fas fa-chart-pie"></i> Visão Geral</button>
+            <button class="nav-btn" onclick="app.nav('clients')"><i class="fas fa-users"></i> Gestão de Clientes</button>
+            <button class="nav-btn" onclick="app.nav('create')"><i class="fas fa-plus-circle"></i> Novo Contrato</button>
+            <button class="nav-btn" onclick="app.nav('settings')"><i class="fas fa-cog"></i> Configurações & Logo</button>
+        </div>
+        <div class="sidebar-footer">
+            <button class="btn btn-outline" style="width: 100%; justify-content: center; font-size: 0.8rem; border-color: #475569; color: #cbd5e1; background: transparent; margin-bottom: 10px;" onclick="document.getElementById('backup-input').click()">
+                <i class="fas fa-cloud-upload-alt"></i> Importar Backup CRM
+            </button>
+            <button class="btn btn-danger" style="width: 100%; justify-content: center; font-size: 0.8rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);" onclick="authManager.logout()">
+                <i class="fas fa-sign-out-alt"></i> Sair do Sistema
+            </button>
+            <input type="file" id="backup-input" hidden accept=".json" onchange="backupSystem.handleFile(this)">
+        </div>
+    </aside>
+<main>
+        
+        <section id="view-dashboard" class="tab-view active">
+            <header>
+                <div class="page-title">
+                    <h1>Dashboard</h1>
+                    <p>Histórico de contratos emitidos.</p>
+                </div>
+                <button class="btn btn-primary" onclick="app.nav('create')"><i class="fas fa-plus"></i> Emitir Contrato</button>
+            </header>
+            
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data Emissão</th>
+                                <th>Cliente</th>
+                                <th>Tipo/Doc</th>
+                                <th>Valor (R$)</th>
+                                <th style="text-align: center;">Status (Editável)</th>
+                                <th style="text-align: right;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contracts-list">
+                            <tr><td colspan="6" style="text-align:center; padding: 30px; color: #94a3b8;">Nenhum contrato gerado ainda.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-clients" class="tab-view">
+            <header>
+                <div class="page-title">
+                    <h1>Base de Clientes</h1>
+                    <p>Gerencie os dados cadastrais para seus contratos.</p>
+                </div>
+                <button class="btn btn-primary" onclick="clientManager.openModal()"><i class="fas fa-user-plus"></i> Novo Cliente</button>
+            </header>
+
+            <div class="card">
+                <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+                    <input type="text" id="client-search" class="form-control" placeholder="Buscar por nome ou documento..." onkeyup="clientManager.render()">
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nome / Razão Social</th>
+                                <th>CPF / CNPJ</th>
+                                <th>Cidade</th>
+                                <th>Telefone</th>
+                                <th style="text-align: right;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clients-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-create" class="tab-view">
+            <header>
+                <div class="page-title">
+                    <h1>Novo Contrato</h1>
+                    <p>Preencha os dados e visualize em tempo real.</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-outline" onclick="window.print()"><i class="fas fa-print"></i> Imprimir / PDF</button>
+                    <button class="btn btn-success" onclick="contractManager.sendWhatsApp()"><i class="fab fa-whatsapp"></i> Enviar</button>
+                    <button class="btn btn-primary" onclick="contractManager.saveHistory()"><i class="fas fa-save"></i> Salvar</button>
+                </div>
+            </header>
+
+            <div style="display: grid; grid-template-columns: 350px 1fr; gap: 30px;">
+                <div class="card" style="height: fit-content;">
+                    <h3 style="margin-bottom: 20px; font-size: 1rem; color: #1e293b;">Dados do Contrato</h3>
+                    
+                    <div class="form-group" style="background: #f0f9ff; padding: 10px; border-radius: 6px; border: 1px solid #bae6fd;">
+                        <label style="color: #0369a1;">Tipo de Contrato (Modelo)</label>
+                        <select id="contract-type-select" class="form-control" onchange="contractManager.changeTemplate()">
+                            </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Selecionar Cliente Cadastrado</label>
+                        <select id="contract-client-select" class="form-control" onchange="contractManager.autoFill(this.value)">
+                            <option value="">-- Selecione --</option>
+                        </select>
+                        <small style="color: var(--primary); cursor: pointer; display: block; margin-top: 5px;" onclick="app.nav('clients')">+ Cadastrar novo cliente</small>
+                    </div>
+<div class="form-group"><label>Nome do Cliente</label><input type="text" id="c-name" class="form-control"></div>
+                    <div class="form-group"><label>CPF / CNPJ</label><input type="text" id="c-doc" class="form-control"></div>
+                    <div class="form-group"><label>Endereço Completo</label><input type="text" id="c-address" class="form-control"></div>
+                    <div class="form-group"><label>Telefone</label><input type="text" id="c-phone" class="form-control"></div>
+                    
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+
+                    <div class="form-group"><label>Descrição do Serviço</label><textarea id="c-service" class="form-control" rows="3"></textarea></div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Valor Total (R$)</label><input type="text" id="c-value" class="form-control"></div>
+                        <div class="form-group"><label>Forma Pagamento</label><input type="text" id="c-payment" class="form-control"></div>
+                    </div>
+                    <div class="form-group"><label>Cláusulas Extras</label><textarea id="c-obs" class="form-control" rows="2"></textarea></div>
+
+                    <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="contractManager.updatePreview()">
+                        <i class="fas fa-sync-alt"></i> Atualizar Documento
+                    </button>
+                </div>
+
+                <div class="contract-wrapper">
+                    <div id="paper-doc" class="paper" contenteditable="true">
+                        </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-settings" class="tab-view">
+            <header>
+                <div class="page-title">
+                    <h1>Configurações</h1>
+                    <p>Identidade visual e modelos de contrato.</p>
+                </div>
+            </header>
+
+            <div class="form-grid" style="grid-template-columns: 1fr 2fr;">
+                <div class="card">
+                    <h3 style="margin-bottom: 20px;">Logotipo da Empresa</h3>
+                    <div class="upload-box" onclick="document.getElementById('logo-upload').click()">
+                        <div id="logo-preview-area">
+                            <i class="fas fa-image"></i>
+                            <p style="font-size: 0.9rem; color: #64748b;">Clique para subir sua logo</p>
+                        </div>
+                        <img id="logo-img-tag" style="max-width: 100%; max-height: 100px; display: none; margin: 0 auto;">
+                    </div>
+                    <input type="file" id="logo-upload" hidden accept="image/*" onchange="settingsManager.handleLogo(this)">
+                    
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label>Nome da Empresa (Contratada)</label>
+                        <input type="text" id="company-name" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>CNPJ da Empresa</label>
+                        <input type="text" id="company-cnpj" class="form-control">
+                    </div>
+                    <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="settingsManager.save()">Salvar Configurações</button>
+                </div>
+
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin:0;">Gerenciar Modelos Jurídicos</h3>
+                        <button class="btn btn-outline btn-sm" onclick="settingsManager.createNewTemplate()"><i class="fas fa-plus"></i> Novo Modelo</button>
+                    </div>
+
+                    <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px;">
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label>Selecione o Modelo para Editar:</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="settings-template-select" class="form-control" onchange="settingsManager.loadTemplateToEdit(this.value)"></select>
+                                <button id="btn-fav-toggle" class="btn btn-outline" title="Definir como Favorito/Padrão" onclick="settingsManager.toggleFavorite()">
+                                    <i class="far fa-star"></i>
+                                </button>
+                                <button class="btn btn-danger" title="Excluir Modelo" onclick="settingsManager.deleteTemplate()">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                             <label>Nome do Modelo</label>
+                             <input type="text" id="template-name-edit" class="form-control">
+                        </div>
+                    </div>
+                    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 10px;">
+                        Variáveis: [CLIENTE], [DOC], [ENDERECO], [SERVICO], [VALOR], [PAGAMENTO].
+                    </p>
+                    <textarea id="template-text" class="form-control" style="height: 400px; font-family: monospace; line-height: 1.5;"></textarea>
+                    <div style="text-align: right; margin-top: 15px;">
+                        <button class="btn btn-primary" onclick="settingsManager.saveTemplate()">Salvar Alterações no Modelo</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+    
+    <div id="client-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3>Cadastro de Cliente</h3>
+                <button class="btn-icon" style="border:none; background:transparent; cursor:pointer;" onclick="clientManager.closeModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <form onsubmit="clientManager.save(event)">
+                <input type="hidden" id="modal-id">
+                <div class="form-group"><label>Nome / Razão Social</label><input type="text" id="modal-name" class="form-control" required></div>
+                <div class="form-grid">
+                    <div class="form-group"><label>CPF / CNPJ</label><input type="text" id="modal-doc" class="form-control"></div>
+                    <div class="form-group"><label>Telefone</label><input type="text" id="modal-phone" class="form-control"></div>
+                </div>
+                <div class="form-group"><label>Endereço Completo</label><input type="text" id="modal-address" class="form-control"></div>
+                <div class="form-group"><label>Cidade/UF</label><input type="text" id="modal-city" class="form-control"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Salvar Cliente</button>
+            </form>
+        </div>
+    </div>
+
+<script>
+
+const SUPABASE_URL = 'https://rjyxkouegrropsarrhje.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqeXhrb3VlZ3Jyb3BzYXJyaGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1NjYxNjcsImV4cCI6MjA4NTE0MjE2N30.UjNPnVBVhQcUSirXeWZ3RmYmAhDMqqbbVUChG_Mv57U';
+
+window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+       
+const authManager = {
+    init: async () => {
+        // Verifica sessão atual ao carregar
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        authManager.updateUI(session);
+
+        // Escuta mudanças de estado (Login/Logout)
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            authManager.updateUI(session);
+        });
+    },
+
+    updateUI: (session) => {
+        const body = document.body;
+        const userDisplay = document.getElementById('user-display-email');
+        
+        if (session) {
+            // USUÁRIO LOGADO
+            body.classList.remove('not-authenticated');
+            body.classList.add('authenticated');
+            
+            if(userDisplay) userDisplay.innerText = session.user.email;
+
+            // Inicia o app se necessário
+            if (typeof app !== 'undefined' && !app.initialized) {
+                app.init(); 
+                app.initialized = true;
+            }
+        } else {
+            // USUÁRIO DESLOGADO
+            body.classList.remove('authenticated');
+            body.classList.add('not-authenticated');
+        }
+    },
+
+    login: async () => {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const errorMsg = document.getElementById('login-error-msg');
+        const btn = document.getElementById('btn-do-login');
+
+        if (!email || !password) {
+            errorMsg.innerText = 'Por favor, preencha email e senha.';
+            errorMsg.style.display = 'block';
+            return;
+        }
+
+        btn.innerText = 'Autenticando...';
+        btn.disabled = true;
+        errorMsg.style.display = 'none';
+
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+
+        btn.innerText = 'Entrar no Sistema';
+        btn.disabled = false;
+
+        if (error) {
+            errorMsg.innerText = 'Erro de acesso: ' + (error.message === 'Invalid login credentials' ? 'Senha ou email incorretos.' : error.message);
+            errorMsg.style.display = 'block';
+        } else {
+            // Sucesso: onAuthStateChange tratará a UI
+        }
+    },
+
+    logout: async () => {
+        if(confirm("Deseja realmente sair do sistema?")) {
+            await supabaseClient.auth.signOut();
+            window.location.reload(); // Recarrega para limpar estados de memória
+        }
+    }
+};
+
+authManager.init();
+
+const DB_CONFIG = { name: 'lg_crmDB', version: 8 };
+
+const db = {
+    clients: [], contracts: [], templates: [],
+    settings: { name: 'Minha Empresa Ltda', cnpj: '00.000.000/0001-00', logo: null },
+    
+    // Nomes das tabelas alterados com sufixo "contrato"
+    saveClients: () => idbManager.saveCollection('clientscontrato', db.clients),
+    saveContracts: () => idbManager.saveCollection('contractscontrato', db.contracts),
+    saveTemplates: () => idbManager.saveCollection('templatescontrato', db.templates),
+    saveSettings: () => idbManager.saveSingle('configcontrato', 'settings', db.settings)
+};
+
+const idbManager = {
+    db: null,
+    open: () => {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);
+            request.onupgradeneeded = (e) => {
+                const database = e.target.result;
+                // Criação das tabelas com sufixo "contrato"
+                if (!database.objectStoreNames.contains('clientscontrato')) database.createObjectStore('clientscontrato', { keyPath: 'id' });
+                if (!database.objectStoreNames.contains('contractscontrato')) database.createObjectStore('contractscontrato', { keyPath: 'id' });
+                if (!database.objectStoreNames.contains('templatescontrato')) database.createObjectStore('templatescontrato', { keyPath: 'id' });
+                if (!database.objectStoreNames.contains('configcontrato')) database.createObjectStore('configcontrato', { keyPath: 'key' });
+            };
+            request.onsuccess = (e) => {
+                idbManager.db = e.target.result;
+                resolve(idbManager.db);
+            };
+            request.onerror = (e) => reject('Erro IndexDB');
+        });
+    },
+    loadAll: async () => {
+        if (!idbManager.db) await idbManager.open();
+        
+        const loadStore = (storeName) => {
+            return new Promise((resolve) => {
+                const tx = idbManager.db.transaction(storeName, 'readonly');
+                const req = tx.objectStore(storeName).getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve([]);
+            });
+        };
+
+        // Carrega das tabelas "contrato"
+        db.clients = await loadStore('clientscontrato') || [];
+        db.contracts = await loadStore('contractscontrato') || [];
+        
+        const templates = await loadStore('templatescontrato');
+        if (templates && templates.length > 0) {
+            db.templates = templates;
+        } else {
+            db.templates = [{ id: 1, name: 'Modelo Padrão', content: getDefaultTemplate(), isFavorite: true }];
+            idbManager.saveCollection('templatescontrato', db.templates);
+        }
+
+        return new Promise((resolve) => {
+            const tx = idbManager.db.transaction('configcontrato', 'readonly');
+            const req = tx.objectStore('configcontrato').get('settings');
+            req.onsuccess = () => {
+                if (req.result && req.result.data) db.settings = req.result.data;
+                resolve();
+            };
+            req.onerror = () => resolve(); // Caso a tabela esteja vazia
+        });
+    },
+    saveCollection: (storeName, dataArray) => {
+        if (!idbManager.db) return;
+        const tx = idbManager.db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        store.clear().onsuccess = () => { dataArray.forEach(item => store.put(item)); };
+    },
+    saveSingle: (storeName, key, data) => {
+        if (!idbManager.db) return;
+        const tx = idbManager.db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).put({ key: key, data: data });
+    }
+};
+
+function getDefaultTemplate() {
+    return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS\n\nCONTRATADA:\n[EMPRESA_NOME], CNPJ [EMPRESA_CNPJ].\n\nCONTRATANTE:\n[CLIENTE], CPF/CNPJ [DOC], endereço: [ENDERECO].\n\nOBJETO:\n[SERVICO]\n\nVALOR: R$ [VALOR] ([PAGAMENTO]).\n\nData: ____/____/______\n\n__________________________\nAssinatura`;
+}
+
+
+const app = {
+    initialized: false,
+    init: async () => {
+        try {
+            await idbManager.loadAll();
+            
+            clientManager.render();
+            settingsManager.init();
+            contractManager.renderHistory();
+            settingsManager.renderTemplateList();
+            contractManager.initCreate();
+
+            // Navega para dashboard
+            app.nav('dashboard');
+
+            // Fade out splash
+            setTimeout(() => {
+                const intro = document.getElementById('intro-overlay');
+                if(intro) {
+                    intro.style.opacity = '0';
+                    intro.style.visibility = 'hidden';
+                    setTimeout(() => intro.remove(), 1000);
+                }
+            }, 2500);
+
+        } catch (err) { console.error(err); }
+    },
+    nav: (viewId) => {
+        document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
+        document.getElementById(`view-${viewId}`).classList.add('active');
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        const btnIndex = ['dashboard', 'clients', 'create', 'settings'].indexOf(viewId);
+        if(btnIndex >= 0) document.querySelectorAll('.nav-btn')[btnIndex].classList.add('active');
+        if(viewId === 'create') contractManager.initCreate();
+    }
+};
+
+const clientManager = {
+    openModal: (id = null) => {
+        document.getElementById('client-modal').style.display = 'flex';
+        document.getElementById('modal-id').value = id || '';
+        if(id) {
+            const c = db.clients.find(x => x.id == id);
+            if(c) {
+                document.getElementById('modal-name').value = c.name;
+                document.getElementById('modal-doc').value = c.doc;
+                document.getElementById('modal-phone').value = c.phone;
+                document.getElementById('modal-address').value = c.address;
+                document.getElementById('modal-city').value = c.city;
+            }
+        } else { document.querySelector('#client-modal form').reset(); }
+    },
+    closeModal: () => document.getElementById('client-modal').style.display = 'none',
+    save: (e) => {
+        e.preventDefault();
+        const id = document.getElementById('modal-id').value;
+        const client = {
+            id: id ? parseInt(id) : Date.now(),
+            name: document.getElementById('modal-name').value,
+            doc: document.getElementById('modal-doc').value,
+            phone: document.getElementById('modal-phone').value,
+            address: document.getElementById('modal-address').value,
+            city: document.getElementById('modal-city').value
+        };
+        if(id) {
+            const idx = db.clients.findIndex(x => x.id == id);
+            if(idx >= 0) db.clients[idx] = client;
+        } else { db.clients.push(client); }
+        
+        db.saveClients();
+        clientManager.closeModal();
+        clientManager.render();
+    },
+    delete: (id) => {
+        if(confirm('Excluir cliente?')) {
+            db.clients = db.clients.filter(c => c.id != id);
+            db.saveClients();
+            clientManager.render();
+        }
+    },
+    render: () => {
+        const term = document.getElementById('client-search').value.toLowerCase();
+        const tbody = document.getElementById('clients-list');
+        tbody.innerHTML = '';
+        const filtered = db.clients.filter(c => c.name.toLowerCase().includes(term) || (c.doc && c.doc.includes(term)));
+        
+        if(filtered.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">Nenhum cliente.</td></tr>'; return; }
+
+        filtered.forEach(c => {
+            tbody.innerHTML += `<tr><td><strong>${c.name}</strong></td><td>${c.doc||'-'}</td><td>${c.city||'-'}</td><td>${c.phone||'-'}</td>
+            <td style="text-align:right;"><button class="btn btn-outline" onclick="clientManager.openModal(${c.id})"><i class="fas fa-edit"></i></button>
+            <button class="btn btn-danger" onclick="clientManager.delete(${c.id})"><i class="fas fa-trash"></i></button></td></tr>`;
+        });
+    }
+};
+
+const contractManager = {
+    currentTemplateContent: '',
+    initCreate: () => {
+        const selClient = document.getElementById('contract-client-select');
+        const currentVal = selClient.value;
+        selClient.innerHTML = '<option value="">-- Selecione o Cliente --</option>';
+        db.clients.sort((a,b)=>a.name.localeCompare(b.name)).forEach(c => {
+            selClient.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+        selClient.value = currentVal;
+
+        const selType = document.getElementById('contract-type-select');
+        selType.innerHTML = ''; 
+        
+        let favId = '';
+        db.templates.forEach(t => {
+            selType.innerHTML += `<option value="${t.id}">${t.name}${t.isFavorite?' (Padrão)':''}</option>`;
+            if(t.isFavorite) favId = t.id;
+        });
+        
+        if(favId) selType.value = favId;
+        else if(db.templates.length > 0) selType.value = db.templates[0].id;
+        
+        contractManager.changeTemplate();
+    },
+    changeTemplate: () => {
+        const id = document.getElementById('contract-type-select').value;
+        const tmpl = db.templates.find(t => t.id == id);
+        if(tmpl) { contractManager.currentTemplateContent = tmpl.content; contractManager.updatePreview(); }
+    },
+    autoFill: (id) => {
+        const c = db.clients.find(x => x.id == id);
+        if(c) {
+            document.getElementById('c-name').value = c.name;
+            document.getElementById('c-doc').value = c.doc || '';
+            document.getElementById('c-address').value = c.address ? `${c.address} - ${c.city||''}` : '';
+            document.getElementById('c-phone').value = c.phone || '';
+        }
+        contractManager.updatePreview();
+    },
+    updatePreview: () => {
+        let html = contractManager.currentTemplateContent || getDefaultTemplate();
+        let headerHTML = db.settings.logo ? `<div class="paper-header"><img src="${db.settings.logo}" class="paper-logo" style="display:block; margin:0 auto;"></div>` : '';
+
+        const map = {
+            '[EMPRESA_NOME]': db.settings.name, '[EMPRESA_CNPJ]': db.settings.cnpj,
+            '[CLIENTE]': document.getElementById('c-name').value || '_____',
+            '[DOC]': document.getElementById('c-doc').value || '_____',
+            '[ENDERECO]': document.getElementById('c-address').value || '_____',
+            '[SERVICO]': document.getElementById('c-service').value || '_____',
+            '[VALOR]': document.getElementById('c-value').value || '0,00',
+            '[PAGAMENTO]': document.getElementById('c-payment').value || '_____',
+            '[OBSERVACOES]': document.getElementById('c-obs').value || ''
+        };
+        for(let [key, val] of Object.entries(map)) { html = html.split(key).join(val); }
+        document.getElementById('paper-doc').innerHTML = headerHTML + html;
+    },
+    saveHistory: () => {
+        const name = document.getElementById('c-name').value;
+        if(!name) return alert('Informe o cliente.');
+        const tmpl = db.templates.find(t => t.id == document.getElementById('contract-type-select').value);
+        db.contracts.push({
+            id: Date.now(), date: new Date().toISOString(), client: name,
+            doc: tmpl ? tmpl.name : 'Contrato', val: document.getElementById('c-value').value, status: 'Emitido'
+        });
+        db.saveContracts();
+        contractManager.renderHistory();
+        alert('Contrato salvo!');
+        app.nav('dashboard');
+    },
+    updateStatus: (id, el) => {
+        const idx = db.contracts.findIndex(c => c.id == id);
+        if(idx >= 0) {
+            db.contracts[idx].status = el.value;
+            db.saveContracts();
+            // Cor visual
+            const map = {'Emitido':['#dcfce7','#166534'], 'Pendente':['#fef3c7','#92400e'], 'Assinado':['#dbeafe','#1e40af'], 'Cancelado':['#f1f5f9','#475569']};
+            const s = map[el.value] || map['Cancelado'];
+            el.style.backgroundColor = s[0]; el.style.color = s[1];
+        }
+    },
+    renderHistory: () => {
+        const tbody = document.getElementById('contracts-list');
+        tbody.innerHTML = '';
+        if(db.contracts.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px;">Vazio.</td></tr>'; return; }
+        const map = {'Emitido':['#dcfce7','#166534'], 'Pendente':['#fef3c7','#92400e'], 'Assinado':['#dbeafe','#1e40af'], 'Cancelado':['#f1f5f9','#475569']};
+        
+        [...db.contracts].reverse().forEach(c => {
+            const st = map[c.status] || map['Cancelado'];
+            tbody.innerHTML += `<tr>
+                <td>${new Date(c.date).toLocaleDateString()}</td><td><strong>${c.client}</strong></td><td>${c.doc}</td><td>R$ ${c.val}</td>
+                <td style="text-align:center;"><select class="status-select" style="background:${st[0]}; color:${st[1]};" onchange="contractManager.updateStatus(${c.id}, this)">
+                    <option value="Emitido" ${c.status=='Emitido'?'selected':''}>Emitido</option>
+                    <option value="Pendente" ${c.status=='Pendente'?'selected':''}>Pendente</option>
+                    <option value="Assinado" ${c.status=='Assinado'?'selected':''}>Assinado</option>
+                    <option value="Cancelado" ${c.status=='Cancelado'?'selected':''}>Cancelado</option>
+                </select></td>
+                <td style="text-align:right;"><button class="btn btn-outline btn-sm" onclick="contractManager.delete(${c.id})"><i class="fas fa-trash"></i></button></td>
+            </tr>`;
+        });
+    },
+    delete: (id) => { if(confirm('Excluir contrato?')) { db.contracts = db.contracts.filter(c => c.id != id); db.saveContracts(); contractManager.renderHistory(); } },
+    sendWhatsApp: () => {
+        const phone = document.getElementById('c-phone').value.replace(/\D/g, '');
+        if(!phone) return alert('Sem telefone.');
+        window.open(`https://wa.me/55${phone}?text=${encodeURIComponent("Segue o contrato.")}`);
+    }
+};
+
+const settingsManager = {
+    currentEditId: null,
+    init: () => {
+        document.getElementById('company-name').value = db.settings.name;
+        document.getElementById('company-cnpj').value = db.settings.cnpj;
+        if(db.settings.logo) {
+            document.getElementById('logo-preview-area').style.display = 'none';
+            document.getElementById('logo-img-tag').src = db.settings.logo;
+            document.getElementById('logo-img-tag').style.display = 'block';
+        }
+    },
+    renderTemplateList: () => {
+        const sel = document.getElementById('settings-template-select');
+        sel.innerHTML = '';
+        let target = settingsManager.currentEditId || (db.templates.find(t=>t.isFavorite)||db.templates[0])?.id;
+        db.templates.forEach(t => { sel.innerHTML += `<option value="${t.id}" ${t.id==target?'selected':''}>${t.isFavorite?'★ ':''}${t.name}</option>`; });
+        if(target) settingsManager.loadTemplateToEdit(target);
+    },
+    loadTemplateToEdit: (id) => {
+        settingsManager.currentEditId = id;
+        const tmpl = db.templates.find(t => t.id == id);
+        if(tmpl) {
+            document.getElementById('template-name-edit').value = tmpl.name;
+            document.getElementById('template-text').value = tmpl.content;
+            document.getElementById('btn-fav-toggle').innerHTML = tmpl.isFavorite ? '<i class="fas fa-star" style="color:var(--warning)"></i>' : '<i class="far fa-star"></i>';
+        }
+    },
+    handleLogo: (input) => {
+        if(input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (e) => { db.settings.logo = e.target.result; settingsManager.init(); };
+            reader.readAsDataURL(input.files[0]);
+        }
+    },
+    save: () => {
+        db.settings.name = document.getElementById('company-name').value;
+        db.settings.cnpj = document.getElementById('company-cnpj').value;
+        db.saveSettings();
+        alert('Salvo!');
+    },
+    saveTemplate: () => {
+        const idx = db.templates.findIndex(t => t.id == settingsManager.currentEditId);
+        if(idx >= 0) {
+            db.templates[idx].name = document.getElementById('template-name-edit').value;
+            db.templates[idx].content = document.getElementById('template-text').value;
+            db.saveTemplates();
+            settingsManager.renderTemplateList();
+            alert('Modelo salvo.');
+        }
+    },
+    createNewTemplate: () => {
+        const n = { id: Date.now(), name: 'Novo Modelo', content: getDefaultTemplate(), isFavorite: false };
+        db.templates.push(n); db.saveTemplates();
+        settingsManager.currentEditId = n.id; settingsManager.renderTemplateList();
+    },
+    deleteTemplate: () => {
+        if(db.templates.length <= 1) return alert('Mantenha 1 modelo.');
+        if(confirm('Excluir?')) {
+            db.templates = db.templates.filter(t => t.id != settingsManager.currentEditId);
+            if(!db.templates.some(t => t.isFavorite)) db.templates[0].isFavorite = true;
+            db.saveTemplates();
+            settingsManager.currentEditId = null;
+            settingsManager.renderTemplateList();
+        }
+    },
+    toggleFavorite: () => {
+        db.templates.forEach(t => t.isFavorite = false);
+        const idx = db.templates.findIndex(t => t.id == settingsManager.currentEditId);
+        if(idx>=0) { db.templates[idx].isFavorite = true; db.saveTemplates(); settingsManager.renderTemplateList(); }
+    }
+};
+
+const backupSystem = {
+    handleFile: (input) => {
+        const file = input.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const json = JSON.parse(e.target.result);
+                if(json.data?.contacts) {
+                    json.data.contacts.forEach(c => {
+                        if(!db.clients.find(x => x.id === c.id)) {
+                            db.clients.push({ id: c.id, name: c.name, doc: c.cpf||'', phone: c.phone||'', address: c.address||'', city: c.city||'' });
+                        }
+                    });
+                    db.saveClients();
+                    alert('Importado!');
+                    clientManager.render();
+                }
+            } catch(err){ alert('Erro no arquivo.'); }
+        };
+        reader.readAsText(file);
+    }
+};
+</script>
+<script>
+/**
+ * 🚀 UNIVERSAL IDB SYNC - FIXED (ANTI-ZOMBIE DATA)
+ * - Correção: Persistência de DeviceID (Evita auto-download após F5).
+ * - Correção: Force Delete (Deleta do disco mesmo se não estiver no Cache).
+ */
+(function () {
+    // ==========================================================
+    // 1. CONFIGURAÇÕES & CONSTANTES
+    // ==========================================================
+    const SYNC_TABLE = 'lg_crm_supadb';
+    const CANONICAL_DB = 'lg_crmDB';
+    
+    // FIX 1: Mantém a identidade da aba mesmo após refresh (SessionStorage)
+    // Isso impede que a aba baixe de volta um dado que ela mesma acabou de deletar
+    let storedId = sessionStorage.getItem('sync_device_id');
+    if (!storedId) {
+        storedId = crypto.randomUUID();
+        sessionStorage.setItem('sync_device_id', storedId);
+    }
+    const DEVICE_ID = storedId;
+    
+    let isReplicating = false; 
+    let syncInterval = null;
+
+    // 🧠 CACHE INTELIGENTE
+    const syncCache = new Map();
+
+    // ==========================================================
+    // 2. UTILITÁRIOS
+    // ==========================================================
+    const getClient = () => window.supabaseClient || window.supabase;
+
+    const waitForSupabase = () => new Promise(resolve => {
+        const check = () => getClient() ? resolve(getClient()) : setTimeout(check, 100);
+        check();
+    });
+
+    async function getUserId() {
+        const client = await waitForSupabase();
+        const { data } = await client.auth.getSession();
+        return data?.session?.user?.id || null;
+    }
+
+    function generateSignature(value) {
+        // Garante que null/undefined sejam tratados iguais
+        if (value === null || value === undefined) return 'null';
+        return JSON.stringify(value);
+    }
+
+    // ==========================================================
+    // 3. INTERCEPTAÇÃO REAL-TIME (IndexDB -> Supabase)
+    // ==========================================================
+    const original = {
+        put: IDBObjectStore.prototype.put,
+        add: IDBObjectStore.prototype.add,
+        delete: IDBObjectStore.prototype.delete
+    };
+
+    async function scheduleRealtimeUpload(storeName, method, key, value) {
+        if (isReplicating) return; 
+
+        const client = getClient();
+        const userId = await getUserId();
+        if (!client || !userId) return;
+
+        const cacheKey = `${storeName}-${key}`;
+        
+        // Atualiza cache local imediatamente
+        if (method === 'delete') {
+            syncCache.delete(cacheKey);
+        } else {
+            syncCache.set(cacheKey, generateSignature(value));
+        }
+
+        // Envia para Supabase
+        // FIX: Tratamento de erro silencioso para evitar travar a UI
+        client.from(SYNC_TABLE).upsert({
+            user_id: userId,
+            db_name: CANONICAL_DB,
+            store_name: storeName,
+            record_key: String(key),
+            record_value: method === 'delete' ? null : value,
+            is_deleted: method === 'delete',
+            device_id: DEVICE_ID,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,db_name,store_name,record_key' })
+        .then(({ error }) => {
+            if (error) console.warn(`⚠️ Sync Upload Falhou:`, error.message);
+        });
+    }
+
+    IDBObjectStore.prototype.put = function (v, k) {
+        const req = original.put.apply(this, arguments);
+        const storeName = this.name;
+        req.onsuccess = (e) => scheduleRealtimeUpload(storeName, 'put', k || e.target.result, v);
+        return req;
+    };
+
+    IDBObjectStore.prototype.add = function (v, k) {
+        const req = original.add.apply(this, arguments);
+        const storeName = this.name;
+        req.onsuccess = (e) => scheduleRealtimeUpload(storeName, 'add', k || e.target.result, v);
+        return req;
+    };
+
+    IDBObjectStore.prototype.delete = function (k) {
+        const req = original.delete.apply(this, arguments);
+        const storeName = this.name;
+        req.onsuccess = (e) => scheduleRealtimeUpload(storeName, 'delete', k, null);
+        return req;
+    };
+
+    console.log('🪤 Sistema de Sync Híbrido Ativado (v2 Anti-Zombie)');
+
+    // ==========================================================
+    // 4. SMART UPLOAD LOOP (PC -> CLOUD)
+    // ==========================================================
+    async function smartUploadLoop() {
+        const userId = await getUserId();
+        const client = getClient();
+        if (!userId || !client) return;
+
+        const req = indexedDB.open(CANONICAL_DB);
+        
+        req.onsuccess = (e) => {
+            const db = e.target.result;
+            const storeNames = Array.from(db.objectStoreNames);
+
+            storeNames.forEach(storeName => {
+                const tx = db.transaction([storeName], 'readonly');
+                const store = tx.objectStore(storeName);
+                
+                Promise.all([
+                    new Promise(r => store.getAll().onsuccess = (ev) => r(ev.target.result)),
+                    new Promise(r => store.getAllKeys().onsuccess = (ev) => r(ev.target.result))
+                ]).then(async ([records, keys]) => {
+                    if (!records.length) return;
+
+                    const changedRecords = [];
+
+                    records.forEach((item, index) => {
+                        const key = String(keys[index]);
+                        const cacheKey = `${storeName}-${key}`;
+                        const currentSig = generateSignature(item);
+
+                        // Só sobe se mudou em relação ao que sabemos
+                        if (syncCache.get(cacheKey) !== currentSig) {
+                            changedRecords.push({
+                                user_id: userId,
+                                db_name: CANONICAL_DB,
+                                store_name: storeName,
+                                record_key: key,
+                                record_value: item,
+                                is_deleted: false,
+                                device_id: DEVICE_ID,
+                                updated_at: new Date().toISOString()
+                            });
+                            syncCache.set(cacheKey, currentSig);
+                        }
+                    });
+
+                    if (changedRecords.length > 0) {
+                        console.log(`📤 Upload Batch: ${changedRecords.length} itens`);
+                        await client.from(SYNC_TABLE).upsert(changedRecords, { 
+                            onConflict: 'user_id,db_name,store_name,record_key' 
+                        });
+                    }
+                });
+            });
+        };
+    }
+
+    // ==========================================================
+    // 5. SMART DOWNLOAD LOOP (CLOUD -> PC)
+    // ==========================================================
+    async function smartDownloadLoop() {
+        const userId = await getUserId();
+        const client = getClient();
+        if (!userId || !client) return;
+
+        const { data, error } = await client
+            .from(SYNC_TABLE)
+            .select('*')
+            .eq('user_id', userId)
+            .eq('db_name', CANONICAL_DB);
+
+        if (error || !data || !data.length) return;
+
+        const req = indexedDB.open(CANONICAL_DB);
+        req.onsuccess = (e) => {
+            const db = e.target.result;
+            const localStores = Array.from(db.objectStoreNames);
+            
+            const validRecords = data.filter(r => localStores.includes(r.store_name));
+            if (!validRecords.length) return;
+
+            const tx = db.transaction([...new Set(validRecords.map(r => r.store_name))], 'readwrite');
+            isReplicating = true;
+
+            let writes = 0;
+
+            validRecords.forEach(r => {
+                // ANTI-ECHO: Se o dado veio deste mesmo DEVICE_ID, ignoramos.
+                // Como agora usamos sessionStorage, isso persiste após refresh.
+                if (r.device_id === DEVICE_ID) return;
+
+                const store = tx.objectStore(r.store_name);
+                // Converte chave numérica se necessário
+                const key = !isNaN(r.record_key) ? Number(r.record_key) : r.record_key;
+                const cacheKey = `${r.store_name}-${r.record_key}`;
+                
+                // LÓGICA DE DELETE (CORRIGIDA)
+                if (r.is_deleted) {
+                    // FIX: Deleta incondicionalmente. Se não existir, não dá erro.
+                    // Antes verificávamos o cache, o que impedia deletes em sessões novas.
+                    store.delete(key);
+                    
+                    if (syncCache.has(cacheKey)) {
+                        syncCache.delete(cacheKey);
+                        writes++;
+                    }
+                    return;
+                }
+
+                // LÓGICA DE UPDATE/INSERT
+                const incomingSig = generateSignature(r.record_value);
+                const localSig = syncCache.get(cacheKey);
+
+                if (incomingSig === localSig) {
+                    return; 
+                }
+
+                // Atualiza IDB
+                const val = r.record_value;
+                if (store.keyPath && val && typeof val === 'object') {
+                    // Se a store usa keyPath inline, injetamos a chave se necessário
+                    if (!val[store.keyPath]) val[store.keyPath] = key;
+                    store.put(val);
+                } else {
+                    store.put(val, key);
+                }
+                
+                syncCache.set(cacheKey, incomingSig);
+                writes++;
+            });
+
+            tx.oncomplete = () => {
+                isReplicating = false;
+                if (writes > 0) console.log(`📥 Download Sync: ${writes} alterações aplicadas.`);
+            };
+            
+            tx.onerror = () => isReplicating = false;
+        };
+    }
+
+    // ==========================================================
+    // 6. INICIALIZAÇÃO
+    // ==========================================================
+    async function startService() {
+        const userId = await getUserId();
+        if (!userId) return;
+
+        console.log('✅ Serviço de Sync Iniciado para:', userId);
+        const client = getClient();
+
+        client.channel('global-sync-live')
+            .on('postgres_changes', { 
+                event: '*', schema: 'public', table: SYNC_TABLE, filter: `user_id=eq.${userId}` 
+            }, payload => {
+                // Só dispara download se o evento veio de OUTRO device
+                if (payload.new && payload.new.device_id !== DEVICE_ID) {
+                    smartDownloadLoop();
+                }
+            })
+            .subscribe();
+
+        // Ordem estratégica: Carrega Cache Local -> Baixa Nuvem -> Inicia Loop
+        await smartUploadLoop(); 
+        setTimeout(smartDownloadLoop, 500); // Pequeno delay para garantir que o Upload populou o cache
+
+        if (syncInterval) clearInterval(syncInterval);
+        syncInterval = setInterval(async () => {
+            await smartUploadLoop();
+            await smartDownloadLoop();
+        }, 10000);
+    }
+
+    waitForSupabase().then(client => {
+        client.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' && session) startService();
+        });
+        getUserId().then(id => { if (id) startService(); });
+    });
+
+})();
+</script>
+</body>
+</html>
