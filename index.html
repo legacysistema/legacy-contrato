@@ -1313,5 +1313,443 @@ const backupSystem = {
 
 })();
 </script>
+<style>
+/* ================= ASSINATURA DIGITAL ================= */
+.signature-box {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px dashed #000;
+    text-align: center;
+}
+
+.signature-canvas {
+    border: 1px solid #000;
+    width: 100%;
+    height: 160px;
+    cursor: crosshair;
+}
+
+.signature-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.signature-preview img {
+    margin-top: 10px;
+    max-width: 300px;
+}
+</style>
+
+<script>
+/* ================= ASSINATURA DIGITAL ================= */
+
+const signatureManager = {
+    canvas: null,
+    ctx: null,
+    drawing: false,
+    imageData: null,
+
+    init() {
+        const paper = document.getElementById('paper-doc');
+        if (!paper) return;
+
+        if (document.getElementById('signature-area')) return;
+
+        paper.insertAdjacentHTML('beforeend', `
+            <div class="signature-box" id="signature-area">
+                <p><strong>Assinatura do Contratante</strong></p>
+                <canvas id="signature-canvas" class="signature-canvas"></canvas>
+
+                <div class="signature-actions">
+                    <button class="btn btn-outline btn-sm" onclick="signatureManager.clear()">Limpar</button>
+                    <button class="btn btn-primary btn-sm" onclick="signatureManager.apply()">Aplicar Assinatura</button>
+                </div>
+
+                <div class="signature-preview" id="signature-preview"></div>
+            </div>
+        `);
+
+        this.canvas = document.getElementById('signature-canvas');
+        this.ctx = this.canvas.getContext('2d');
+
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+
+        this.canvas.addEventListener('mousedown', e => this.start(e));
+        this.canvas.addEventListener('mouseup', () => this.stop());
+        this.canvas.addEventListener('mousemove', e => this.draw(e));
+
+        this.canvas.addEventListener('touchstart', e => this.start(e.touches[0]));
+        this.canvas.addEventListener('touchend', () => this.stop());
+        this.canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            this.draw(e.touches[0]);
+        });
+    },
+
+    resize() {
+        this.canvas.width = this.canvas.offsetWidth;
+        this.canvas.height = 160;
+        this.ctx.lineWidth = 2;
+        this.ctx.lineCap = 'round';
+        this.ctx.strokeStyle = '#000';
+    },
+
+    start(e) {
+        this.drawing = true;
+        this.ctx.beginPath();
+        this.ctx.moveTo(e.offsetX || e.clientX - this.canvas.getBoundingClientRect().left,
+                        e.offsetY || e.clientY - this.canvas.getBoundingClientRect().top);
+    },
+
+    stop() {
+        this.drawing = false;
+    },
+
+    draw(e) {
+        if (!this.drawing) return;
+        this.ctx.lineTo(e.offsetX || e.clientX - this.canvas.getBoundingClientRect().left,
+                        e.offsetY || e.clientY - this.canvas.getBoundingClientRect().top);
+        this.ctx.stroke();
+    },
+
+    clear() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        document.getElementById('signature-preview').innerHTML = '';
+        this.imageData = null;
+    },
+
+    apply() {
+        this.imageData = this.canvas.toDataURL('image/png');
+
+        document.getElementById('signature-preview').innerHTML = `
+            <p style="margin-top:10px"><strong>Assinatura aplicada:</strong></p>
+            <img src="${this.imageData}">
+        `;
+
+        contractManager.currentSignature = this.imageData;
+    }
+};
+
+/* HOOK AUTOMÁTICO NO CONTRATO */
+const originalUpdatePreview = contractManager.updatePreview;
+contractManager.updatePreview = function () {
+    originalUpdatePreview.call(this);
+    setTimeout(() => signatureManager.init(), 200);
+};
+
+/* SALVAR ASSINATURA JUNTO AO CONTRATO */
+const originalSaveHistory = contractManager.saveHistory;
+contractManager.saveHistory = function () {
+    const contract = {
+        id: Date.now(),
+        content: document.getElementById('paper-doc').innerHTML,
+        signature: this.currentSignature || null,
+        date: new Date().toISOString()
+    };
+
+    db.contracts.push(contract);
+    db.saveContracts();
+    alert('Contrato salvo com assinatura!');
+};
+</script>
+
+<!-- ================= PÁGINA DE ASSINATURA EXTERNA ================= -->
+<div id="signing-page-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#f1f5f9; z-index:99999; overflow-y:auto;">
+    <div style="max-width:800px; margin:0 auto; padding:40px 20px;">
+        <div style="background:white; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.12); padding:40px;">
+            <div style="text-align:center; margin-bottom:30px; padding-bottom:20px; border-bottom:2px solid #e2e8f0;">
+                <i class="fas fa-file-signature" style="font-size:2.5rem; color:#2563eb; margin-bottom:10px; display:block;"></i>
+                <h2 style="font-size:1.5rem; font-weight:700; color:#1e293b;">Assinatura de Contrato</h2>
+                <p id="sp-subtitle" style="color:#64748b; margin-top:6px; font-size:0.9rem;">Leia o contrato abaixo e assine digitalmente.</p>
+            </div>
+            <div id="sp-contract-body" style="background:#fafafa; border:1px solid #e2e8f0; border-radius:8px; padding:30px; font-family:'Times New Roman',serif; font-size:12pt; line-height:1.7; white-space:pre-wrap; margin-bottom:30px; max-height:500px; overflow-y:auto;"></div>
+            <div style="border-top:2px dashed #000; padding-top:24px; text-align:center;">
+                <p style="font-weight:600; margin-bottom:12px;">Assinatura do Contratante</p>
+                <canvas id="sp-canvas" style="border:1.5px solid #334155; width:100%; height:160px; cursor:crosshair; border-radius:6px; background:#fff;"></canvas>
+                <div style="margin-top:12px; display:flex; justify-content:center; gap:10px;">
+                    <button class="btn btn-outline btn-sm" onclick="signingPage.clear()"><i class="fas fa-eraser"></i> Limpar</button>
+                    <button class="btn btn-primary" onclick="signingPage.submit()"><i class="fas fa-check-circle"></i> Confirmar Assinatura</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL LINK GERADO ================= -->
+<div id="sign-link-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width:480px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="margin:0;"><i class="fas fa-link" style="color:#2563eb; margin-right:8px;"></i>Link de Assinatura</h3>
+            <button class="btn-icon" style="border:none; background:transparent; cursor:pointer;" onclick="signingLinkManager.closeModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:15px; margin-bottom:18px;">
+            <p style="font-size:0.8rem; color:#0369a1; font-weight:600; margin-bottom:8px;"><i class="fas fa-info-circle"></i> Link único gerado para este contrato:</p>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <input type="text" id="sign-link-input" class="form-control" readonly style="font-size:0.8rem; background:#fff;">
+                <button class="btn btn-outline btn-sm" onclick="signingLinkManager.copyLink()" title="Copiar"><i class="fas fa-copy"></i></button>
+            </div>
+        </div>
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px; margin-bottom:18px;">
+            <p style="font-size:0.8rem; color:#166534;"><i class="fas fa-check-circle"></i> Contrato salvo no Supabase. O cliente poderá assinar através do link acima.</p>
+        </div>
+        <button class="btn btn-success" style="width:100%; justify-content:center;" onclick="signingLinkManager.sendWhatsApp()">
+            <i class="fab fa-whatsapp"></i> Enviar Link via WhatsApp
+        </button>
+    </div>
+</div>
+
+<style>
+/* ================= SIGNING LINK STYLES ================= */
+.btn-whatsapp-sign {
+    background: linear-gradient(135deg, #25d366, #128c7e);
+    color: white;
+    border: none;
+}
+.btn-whatsapp-sign:hover { opacity: 0.9; transform: translateY(-1px); }
+#sp-canvas { display: block; }
+</style>
+
+<script>
+/* ================= SIGNING LINK MANAGER ================= */
+
+const signingLinkManager = {
+    currentContractId: null,
+    currentPhone: null,
+    currentLink: null,
+
+    /* Gera o link e salva no Supabase */
+    generate: async () => {
+        const name = document.getElementById('c-name').value;
+        const phone = document.getElementById('c-phone').value.replace(/\D/g, '');
+        if (!name) return alert('Informe o nome do cliente.');
+        if (!phone) return alert('Informe o telefone do cliente para enviar via WhatsApp.');
+
+        const paperDoc = document.getElementById('paper-doc');
+        if (!paperDoc || !paperDoc.innerText.trim()) return alert('Gere o contrato antes de enviar o link.');
+
+        // Remove a área de assinatura interna do snapshot do contrato
+        const clone = paperDoc.cloneNode(true);
+        const sigArea = clone.querySelector('#signature-area');
+        if (sigArea) sigArea.remove();
+        const contractHTML = clone.innerHTML;
+
+        const contractId = 'sign_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+
+        try {
+            const { error } = await window.supabaseClient
+                .from('signature_requests')
+                .insert({
+                    id: contractId,
+                    client_name: name,
+                    contract_html: contractHTML,
+                    status: 'pending',
+                    created_at: new Date().toISOString()
+                });
+
+            if (error) {
+                console.error('Supabase error:', error);
+                return alert('Erro ao salvar no Supabase: ' + error.message + '\n\nVerifique se a tabela "signature_requests" foi criada.');
+            }
+
+            signingLinkManager.currentContractId = contractId;
+            signingLinkManager.currentPhone = phone;
+
+            const baseUrl = window.location.href.split('?')[0];
+            const link = `${baseUrl}?sign=${contractId}`;
+            signingLinkManager.currentLink = link;
+
+            document.getElementById('sign-link-input').value = link;
+            document.getElementById('sign-link-modal').style.display = 'flex';
+
+        } catch (err) {
+            alert('Erro inesperado: ' + err.message);
+        }
+    },
+
+    copyLink: () => {
+        const input = document.getElementById('sign-link-input');
+        input.select();
+        document.execCommand('copy');
+        alert('Link copiado!');
+    },
+
+    sendWhatsApp: () => {
+        const phone = signingLinkManager.currentPhone;
+        const link = signingLinkManager.currentLink;
+        if (!phone || !link) return;
+        const msg = `Olá! Segue o link para assinar seu contrato digitalmente:\n\n${link}\n\nClique no link, leia o contrato e assine. Obrigado!`;
+        window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+    },
+
+    closeModal: () => {
+        document.getElementById('sign-link-modal').style.display = 'none';
+    }
+};
+
+/* ================= PÁGINA DE ASSINATURA (CLIENT VIEW) ================= */
+
+const signingPage = {
+    canvas: null,
+    ctx: null,
+    drawing: false,
+    contractId: null,
+
+    init: async (contractId) => {
+        signingPage.contractId = contractId;
+
+        // Mostra overlay da página de assinatura, esconde o CRM
+        document.getElementById('signing-page-overlay').style.display = 'block';
+        document.getElementById('login-overlay').style.display = 'none';
+        if (document.getElementById('intro-overlay')) document.getElementById('intro-overlay').style.display = 'none';
+
+        // Carrega o contrato do Supabase
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('signature_requests')
+                .select('*')
+                .eq('id', contractId)
+                .single();
+
+            if (error || !data) {
+                document.getElementById('sp-contract-body').innerHTML = '<p style="color:#ef4444; text-align:center; padding:20px;"><i class="fas fa-exclamation-circle"></i> Contrato não encontrado ou link inválido.</p>';
+                return;
+            }
+
+            if (data.status === 'signed') {
+                document.getElementById('sp-contract-body').innerHTML = data.contract_html || '';
+                document.getElementById('sp-subtitle').innerHTML = '<span style="color:#10b981; font-weight:600;"><i class="fas fa-check-circle"></i> Este contrato já foi assinado.</span>';
+                document.querySelector('#signing-page-overlay [style*="border-top:2px dashed"]').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('sp-contract-body').innerHTML = data.contract_html || '';
+            document.getElementById('sp-subtitle').innerText = `Contrato para: ${data.client_name}`;
+
+        } catch (err) {
+            document.getElementById('sp-contract-body').innerText = 'Erro ao carregar o contrato.';
+        }
+
+        // Inicia canvas
+        const canvas = document.getElementById('sp-canvas');
+        signingPage.canvas = canvas;
+        signingPage.ctx = canvas.getContext('2d');
+
+        const resize = () => {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = 160;
+            signingPage.ctx.lineWidth = 2;
+            signingPage.ctx.lineCap = 'round';
+            signingPage.ctx.strokeStyle = '#1e293b';
+        };
+        resize();
+        window.addEventListener('resize', resize);
+
+        const getPos = (e) => {
+            const r = canvas.getBoundingClientRect();
+            return { x: (e.clientX || e.touches[0].clientX) - r.left, y: (e.clientY || e.touches[0].clientY) - r.top };
+        };
+
+        canvas.addEventListener('mousedown', (e) => { signingPage.drawing = true; const p = getPos(e); signingPage.ctx.beginPath(); signingPage.ctx.moveTo(p.x, p.y); });
+        canvas.addEventListener('mouseup', () => { signingPage.drawing = false; });
+        canvas.addEventListener('mouseleave', () => { signingPage.drawing = false; });
+        canvas.addEventListener('mousemove', (e) => { if (!signingPage.drawing) return; const p = getPos(e); signingPage.ctx.lineTo(p.x, p.y); signingPage.ctx.stroke(); });
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); signingPage.drawing = true; const p = getPos(e); signingPage.ctx.beginPath(); signingPage.ctx.moveTo(p.x, p.y); });
+        canvas.addEventListener('touchend', () => { signingPage.drawing = false; });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (!signingPage.drawing) return; const p = getPos(e); signingPage.ctx.lineTo(p.x, p.y); signingPage.ctx.stroke(); });
+    },
+
+    clear: () => {
+        if (!signingPage.canvas) return;
+        signingPage.ctx.clearRect(0, 0, signingPage.canvas.width, signingPage.canvas.height);
+    },
+
+    submit: async () => {
+        const canvas = signingPage.canvas;
+        if (!canvas) return;
+
+        // Verifica se o canvas está em branco
+        const blank = document.createElement('canvas');
+        blank.width = canvas.width; blank.height = canvas.height;
+        if (canvas.toDataURL() === blank.toDataURL()) {
+            return alert('Por favor, assine o documento antes de confirmar.');
+        }
+
+        const signatureData = canvas.toDataURL('image/png');
+
+        try {
+            const { error } = await window.supabaseClient
+                .from('signature_requests')
+                .update({
+                    status: 'signed',
+                    signature_data: signatureData,
+                    signed_at: new Date().toISOString()
+                })
+                .eq('id', signingPage.contractId);
+
+            if (error) return alert('Erro ao salvar assinatura: ' + error.message);
+
+            // Feedback visual de sucesso
+            document.getElementById('signing-page-overlay').innerHTML = `
+                <div style="display:flex; align-items:center; justify-content:center; min-height:100vh;">
+                    <div style="background:white; border-radius:16px; box-shadow:0 20px 40px rgba(0,0,0,0.12); padding:60px 40px; text-align:center; max-width:400px;">
+                        <div style="width:80px; height:80px; background:#dcfce7; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+                            <i class="fas fa-check" style="font-size:2.5rem; color:#16a34a;"></i>
+                        </div>
+                        <h2 style="font-size:1.6rem; font-weight:800; color:#1e293b; margin-bottom:10px;">Assinado com Sucesso!</h2>
+                        <p style="color:#64748b; font-size:0.95rem;">Seu contrato foi assinado digitalmente e registrado com segurança.</p>
+                        <p style="color:#94a3b8; font-size:0.8rem; margin-top:20px;">Você pode fechar esta página.</p>
+                    </div>
+                </div>
+            `;
+
+        } catch (err) {
+            alert('Erro inesperado: ' + err.message);
+        }
+    }
+};
+
+/* ================= INTERCEPT URL PARAM ?sign= ================= */
+(function checkSigningMode() {
+    const params = new URLSearchParams(window.location.search);
+    const signId = params.get('sign');
+    if (signId) {
+        // Aguarda Supabase estar pronto antes de carregar
+        const tryInit = () => {
+            if (window.supabaseClient) {
+                signingPage.init(signId);
+            } else {
+                setTimeout(tryInit, 100);
+            }
+        };
+        tryInit();
+    }
+})();
+
+/* ================= HOOK: ADICIONAR BOTÃO "ENVIAR LINK" NA TELA DE CONTRATO ================= */
+(function hookSendLinkButton() {
+    const originalNav = app.nav;
+    app.nav = function(viewId) {
+        originalNav.call(this, viewId);
+        if (viewId === 'create') {
+            setTimeout(() => {
+                if (document.getElementById('btn-send-sign-link')) return;
+                const headerBtns = document.querySelector('#view-create header > div[style]');
+                if (headerBtns) {
+                    const btn = document.createElement('button');
+                    btn.id = 'btn-send-sign-link';
+                    btn.className = 'btn btn-whatsapp-sign';
+                    btn.innerHTML = '<i class="fab fa-whatsapp"></i> Enviar para Assinar';
+                    btn.onclick = () => signingLinkManager.generate();
+                    headerBtns.insertBefore(btn, headerBtns.firstChild);
+                }
+            }, 100);
+        }
+    };
+})();
+</script>
 </body>
 </html>
